@@ -4,7 +4,7 @@ import { Sliders, Play, Info } from 'lucide-react';
 import { calculateStrengthLevel } from '../utils/planGenerator';
 
 interface StrengthTestPreviewProps {
-  onOpenFullTest: (initialValues?: { pushups: number; plankSeconds: number; squats: number; frequency: any }) => void;
+  onOpenFullTest: (initialValues?: { pushups: number; plankSeconds: number; squats: number; frequency: 'never' | '1-2' | '3-4' | '5+' }) => void;
 }
 
 export const StrengthTestPreview: React.FC<StrengthTestPreviewProps> = ({ onOpenFullTest }) => {
