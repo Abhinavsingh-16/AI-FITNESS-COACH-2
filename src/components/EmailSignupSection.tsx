@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, CheckCircle2, Bell, Loader2 } from 'lucide-react';
-import { supabase } from '../utils/supabaseClient';
+import { signupEmail } from '../utils/emailSignup';
 
 export const EmailSignupSection: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -8,45 +8,21 @@ export const EmailSignupSection: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
   const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedEmail = email.trim();
-
-    if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
-      setError('Please enter a valid email address.');
-      return;
-    }
-
     setError('');
     setLoading(true);
 
-    try {
-      const { error: insertError } = await supabase
-        .from('email_signups')
-        .insert([{ email: trimmedEmail }]);
+    const result = await signupEmail(email);
 
-      if (insertError) {
-        if (
-          insertError.code === '23505' ||
-          insertError.message?.toLowerCase().includes('duplicate') ||
-          insertError.message?.toLowerCase().includes('unique')
-        ) {
-          setError('This email is already signed up.');
-        } else {
-          setError('Something went wrong, please try again.');
-        }
-        return;
-      }
-
+    if (result.success) {
       setSubscribed(true);
       setEmail('');
-    } catch {
-      setError('Something went wrong, please try again.');
-    } finally {
-      setLoading(false);
+    } else {
+      setError(result.error || 'Something went wrong, please try again.');
     }
+
+    setLoading(false);
   };
 
   return (
