@@ -29,9 +29,12 @@ export const GeneratedPlanModal: React.FC<GeneratedPlanModalProps> = ({
         )
         .join('\n\n');
 
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }).catch(() => {
+      // Clipboard may be unavailable outside secure contexts
+    });
   };
 
   const handlePrint = () => {
@@ -45,7 +48,7 @@ export const GeneratedPlanModal: React.FC<GeneratedPlanModalProps> = ({
         <div className="bg-zinc-950 text-white p-4 flex items-center justify-between border-b border-zinc-800">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-emerald-400" />
-            <span className="font-mono text-xs font-bold uppercase tracking-wider text-white">
+            <span className="font-mono text-[10px] sm:text-xs font-bold uppercase tracking-wider text-white truncate">
               YOUR PERSONALIZED WORKOUT PROGRAM // {plan.id}
             </span>
           </div>

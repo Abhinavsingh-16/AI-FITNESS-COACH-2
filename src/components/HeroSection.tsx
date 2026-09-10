@@ -23,9 +23,9 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onStartTestWithEmail }
     <section id="hero-section" className="relative py-12 md:py-20 px-4 sm:px-6 lg:px-8 border-b border-zinc-800 elegant-grid">
       <div className="max-w-6xl mx-auto">
         {/* Section tag */}
-        <div className="flex items-center justify-between mb-8 pb-3 border-b border-zinc-800/80 text-zinc-500 font-mono text-xs">
-          <span className="uppercase tracking-widest">// SECTION 01 : STRENGTH_FIRST_INITIALIZATION</span>
-          <span>EST. TIME: 60 SECONDS</span>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-8 pb-3 border-b border-zinc-800/80 text-zinc-500 font-mono text-[10px] sm:text-xs">
+          <span className="uppercase tracking-widest break-words">// SECTION 01 : STRENGTH_FIRST_INITIALIZATION</span>
+          <span className="shrink-0">EST. TIME: 60 SECONDS</span>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">

@@ -50,7 +50,7 @@ export const FitnessTestModal: React.FC<FitnessTestModalProps> = ({
     return () => clearInterval(interval);
   }, [isTimerRunning]);
 
-  // Reset all internal state when the modal is closed so reopening starts fresh
+  // Reset step/timer state when closed; sync form values when opened
   useEffect(() => {
     if (!isOpen) {
       setCurrentStep(1);
@@ -58,8 +58,15 @@ export const FitnessTestModal: React.FC<FitnessTestModalProps> = ({
       setTimerCount(0);
       setIsAnalyzing(false);
       setAnalyzingStage(0);
+      return;
     }
-  }, [isOpen]);
+
+    setPushups(initialValues?.pushups ?? 10);
+    setPlankSeconds(initialValues?.plankSeconds ?? 30);
+    setSquats(initialValues?.squats ?? 15);
+    setFrequency(initialValues?.frequency ?? '1-2');
+    setEmail(initialEmail);
+  }, [isOpen, initialValues, initialEmail]);
 
   if (!isOpen) return null;
 
@@ -109,7 +116,7 @@ export const FitnessTestModal: React.FC<FitnessTestModalProps> = ({
         <div className="bg-zinc-950 text-white p-4 flex items-center justify-between border-b border-zinc-800">
           <div className="flex items-center gap-2">
             <Cpu className="w-4 h-4 text-emerald-400" />
-            <span className="font-mono text-xs font-bold uppercase tracking-wider text-white">
+            <span className="font-mono text-[10px] sm:text-xs font-bold uppercase tracking-wider text-white truncate">
               60-Second Strength Assessment // Step {currentStep} of 4
             </span>
           </div>

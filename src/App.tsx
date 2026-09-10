@@ -32,6 +32,7 @@ export default function App() {
   } | undefined>(undefined);
 
   const handleStartTest = (email?: string) => {
+    setInitialTestValues(undefined);
     if (email) setUserEmail(email);
     setIsTestModalOpen(true);
   };
