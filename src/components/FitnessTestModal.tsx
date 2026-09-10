@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, ArrowRight, ArrowLeft, Cpu, Sparkles, Play, RotateCcw } from 'lucide-react';
+import { X, ArrowRight, ArrowLeft, Cpu, Sparkles, Play, RotateCcw, AlertCircle } from 'lucide-react';
 import { TestFormData, GeneratedWorkoutPlan } from '../types';
-import { generatePersonalizedPlan, calculateStrengthLevel } from '../utils/planGenerator';
+import { calculateStrengthLevel } from '../utils/planGenerator';
 
 interface FitnessTestModalProps {
   isOpen: boolean;
@@ -39,6 +39,10 @@ export const FitnessTestModal: React.FC<FitnessTestModalProps> = ({
   // Analyzing state
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzingStage, setAnalyzingStage] = useState(0);
+  
+  // API loading and error states
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -58,6 +62,8 @@ export const FitnessTestModal: React.FC<FitnessTestModalProps> = ({
       setTimerCount(0);
       setIsAnalyzing(false);
       setAnalyzingStage(0);
+      setIsGenerating(false);
+      setGenerationError(null);
       return;
     }
 
@@ -70,18 +76,20 @@ export const FitnessTestModal: React.FC<FitnessTestModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleNextStep = () => {
+  const handleNextStep = async () => {
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     } else {
-      // Start AI Generation simulation
+      // Start AI Generation
       setIsAnalyzing(true);
       setAnalyzingStage(1);
+      setIsGenerating(true);
+      setGenerationError(null);
 
       setTimeout(() => setAnalyzingStage(2), 700);
       setTimeout(() => setAnalyzingStage(3), 1400);
-      setTimeout(() => {
-        setIsAnalyzing(false);
+
+      try {
         const data: TestFormData = {
           email,
           pushups,
@@ -91,9 +99,30 @@ export const FitnessTestModal: React.FC<FitnessTestModalProps> = ({
           fitnessGoal: goal,
           workoutLocation: location,
         };
-        const plan = generatePersonalizedPlan(data);
+
+        const response = await fetch('/api/generate-plan', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+          throw new Error(`API request failed with status ${response.status}`);
+        }
+
+        const plan = await response.json();
+        
+        setIsAnalyzing(false);
+        setIsGenerating(false);
         onPlanGenerated(plan);
-      }, 2100);
+      } catch (error) {
+        setIsAnalyzing(false);
+        setIsGenerating(false);
+        setGenerationError('We couldn\'t generate your plan right now, please try again.');
+        console.error('Error generating plan:', error);
+      }
     }
   };
 
@@ -147,10 +176,10 @@ export const FitnessTestModal: React.FC<FitnessTestModalProps> = ({
 
               <div className="space-y-2">
                 <h3 className="text-xl font-bold font-mono uppercase text-white">
-                  AI Calibrating Your Strength Profile...
+                  {isGenerating ? 'Generating Your Personalized Plan...' : 'AI Calibrating Your Strength Profile...'}
                 </h3>
                 <p className="text-xs font-mono text-zinc-400 max-w-sm mx-auto">
-                  Synthesizing push volume, core isometric rigidity, and recovery kinetics.
+                  {isGenerating ? 'Connecting to AI-powered workout planning engine...' : 'Synthesizing push volume, core isometric rigidity, and recovery kinetics.'}
                 </p>
               </div>
 
@@ -174,6 +203,34 @@ export const FitnessTestModal: React.FC<FitnessTestModalProps> = ({
                   </span>
                 </div>
               </div>
+            </div>
+          ) : generationError ? (
+            /* Error Screen */
+            <div className="py-12 text-center space-y-6">
+              <div className="w-16 h-16 mx-auto bg-red-900/20 text-red-400 border border-red-800 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-8 h-8" />
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold font-mono uppercase text-white">
+                  Plan Generation Failed
+                </h3>
+                <p className="text-xs font-mono text-zinc-400 max-w-sm mx-auto">
+                  {generationError}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setGenerationError(null);
+                  handleNextStep();
+                }}
+                className="px-6 py-3 bg-white text-black font-bold font-mono text-xs uppercase tracking-wider rounded flex items-center gap-2 hover:bg-zinc-200 transition-colors cursor-pointer mx-auto"
+              >
+                <span>Try Again</span>
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
             </div>
           ) : (
             <>
@@ -452,7 +509,7 @@ export const FitnessTestModal: React.FC<FitnessTestModalProps> = ({
         </div>
 
         {/* Modal Footer Controls */}
-        {!isAnalyzing && (
+        {!isAnalyzing && !generationError && (
           <div className="p-4 bg-zinc-950 border-t border-zinc-800 flex items-center justify-between">
             <button
               type="button"

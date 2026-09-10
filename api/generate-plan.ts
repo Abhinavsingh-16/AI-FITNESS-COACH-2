@@ -158,7 +158,19 @@ Return ONLY valid JSON. No markdown formatting, no backticks, and no introductor
       });
     }
 
-    return res.status(200).json(parsedPlan);
+    // Add metadata fields expected by frontend
+    const enhancedPlan = {
+      id: `PLAN-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+      createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      pushupBaseline: pushups,
+      plankBaseline: plankSeconds,
+      squatBaseline: squats,
+      userStrengthLevel: parsedPlan.userStrengthLevel,
+      weeklySchedule: parsedPlan.weeklySchedule,
+      aiAnalysis: parsedPlan.aiAnalysis,
+    };
+
+    return res.status(200).json(enhancedPlan);
   } catch (error: any) {
     return res.status(500).json({
       error: 'Failed to generate workout plan from Gemini API.',
