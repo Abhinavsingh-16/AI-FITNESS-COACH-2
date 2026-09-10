@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Image as ImageIcon, Video, CheckCircle2, TrendingUp, Plus } from 'lucide-react';
+import { Upload, Image as ImageIcon, Video, CheckCircle2, TrendingUp, Plus, Loader2 } from 'lucide-react';
 import { UserTestimonial, UploadedProgressItem } from '../types';
+import { supabase } from '../utils/supabaseClient';
 
 export const EarlyResultsSection: React.FC = () => {
 
@@ -85,6 +86,13 @@ export const EarlyResultsSection: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<{ name: string; type: 'image' | 'video'; previewUrl: string } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [formErrors, setFormErrors] = useState<{
+    userName?: string;
+    category?: string;
+    milestoneTitle?: string;
+  }>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (file: File) => {
@@ -108,44 +116,90 @@ export const EarlyResultsSection: React.FC = () => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
+    if (loading) return;
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFileSelect(e.dataTransfer.files[0]);
     }
   };
 
-  const handleSubmitUpload = (e: React.FormEvent) => {
+  const handleSubmitUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadTitle.trim() || !uploaderName.trim()) {
-      alert('Please provide a milestone title and your name.');
+    setErrorMessage('');
+
+    const newErrors: { userName?: string; category?: string; milestoneTitle?: string } = {};
+    if (!uploaderName.trim()) {
+      newErrors.userName = 'Name is required.';
+    }
+    if (!uploadCategory || !uploadCategory.trim()) {
+      newErrors.category = 'Category is required.';
+    }
+    if (!uploadTitle.trim()) {
+      newErrors.milestoneTitle = 'Milestone title is required.';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setFormErrors(newErrors);
       return;
     }
 
-    const newItem: UploadedProgressItem = {
-      id: `up-${Date.now()}`,
-      title: uploadTitle,
-      userName: uploaderName,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-      category: uploadCategory,
-      fileUrl: selectedFile ? selectedFile.previewUrl : '',
-      fileType: selectedFile ? selectedFile.type : 'image',
-      notes: uploadNotes || 'Verified workout log update based on AI strength recalibration.',
-      strengthDelta: strengthDeltaInput || 'Baseline recalibrated successfully',
-    };
+    setFormErrors({});
+    setLoading(true);
 
-    // TODO: Phase 3 - connect to Supabase (persist newItem to the database instead of local state only)
-    setUploadedItems([newItem, ...uploadedItems]);
-    setUploadSuccess(true);
+    const fileName = selectedFile ? selectedFile.name : '';
 
-    // Reset form
-    setUploadTitle('');
-    setUploaderName('');
-    setStrengthDeltaInput('');
-    setUploadNotes('');
-    setSelectedFile(null);
+    try {
+      const { error: insertError } = await supabase
+        .from('community_uploads')
+        .insert([
+          {
+            user_name: uploaderName.trim(),
+            category: uploadCategory,
+            milestone_title: uploadTitle.trim(),
+            strength_delta: strengthDeltaInput.trim(),
+            notes: uploadNotes.trim(),
+            file_url: fileName,
+          },
+        ]);
 
-    setTimeout(() => {
-      setUploadSuccess(false);
-    }, 4000);
+      if (insertError) {
+        setErrorMessage('Something went wrong, please try again.');
+        return;
+      }
+
+      const newItem: UploadedProgressItem = {
+        id: `up-${Date.now()}`,
+        title: uploadTitle.trim(),
+        userName: uploaderName.trim(),
+        date: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        category: uploadCategory,
+        fileUrl: selectedFile ? selectedFile.previewUrl : '',
+        fileType: selectedFile ? selectedFile.type : 'image',
+        notes: uploadNotes.trim() || 'Verified workout log update based on AI strength recalibration.',
+        strengthDelta: strengthDeltaInput.trim() || 'Baseline recalibrated successfully',
+      };
+
+      setUploadedItems([newItem, ...uploadedItems]);
+      setUploadSuccess(true);
+
+      // Reset form
+      setUploadTitle('');
+      setUploaderName('');
+      setUploadCategory('before_after');
+      setStrengthDeltaInput('');
+      setUploadNotes('');
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      setTimeout(() => {
+        setUploadSuccess(false);
+      }, 5000);
+    } catch {
+      setErrorMessage('Something went wrong, please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -273,17 +327,19 @@ export const EarlyResultsSection: React.FC = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             {/* Upload Form (Left Column) */}
-            <form onSubmit={handleSubmitUpload} className="lg:col-span-6 space-y-4">
+            <form onSubmit={handleSubmitUpload} noValidate className="lg:col-span-6 space-y-4">
               {/* Drag & Drop File Zone */}
               <div
                 onDragOver={(e) => {
                   e.preventDefault();
-                  setIsDragOver(true);
+                  if (!loading) setIsDragOver(true);
                 }}
                 onDragLeave={() => setIsDragOver(false)}
                 onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => !loading && fileInputRef.current?.click()}
                 className={`border-2 border-dashed p-6 text-center cursor-pointer rounded-xl transition-all ${
+                  loading ? 'opacity-50 cursor-not-allowed' : ''
+                } ${
                   isDragOver
                     ? 'border-white bg-zinc-800'
                     : 'border-zinc-700 bg-zinc-950 hover:border-zinc-500 hover:bg-zinc-900/60'
@@ -292,6 +348,7 @@ export const EarlyResultsSection: React.FC = () => {
                 <input
                   type="file"
                   ref={fileInputRef}
+                  disabled={loading}
                   onChange={(e) => e.target.files && handleFileSelect(e.target.files[0])}
                   accept="image/*,video/*"
                   className="hidden"
@@ -329,10 +386,22 @@ export const EarlyResultsSection: React.FC = () => {
                     type="text"
                     placeholder="e.g., Jordan P."
                     value={uploaderName}
-                    onChange={(e) => setUploaderName(e.target.value)}
-                    required
-                    className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-md font-mono text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-white"
+                    disabled={loading}
+                    onChange={(e) => {
+                      setUploaderName(e.target.value);
+                      if (formErrors.userName) {
+                        setFormErrors((prev) => ({ ...prev, userName: undefined }));
+                      }
+                    }}
+                    className={`w-full h-10 px-3 bg-zinc-950 border ${
+                      formErrors.userName ? 'border-rose-500' : 'border-zinc-700'
+                    } rounded-md font-mono text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-white disabled:opacity-50`}
                   />
+                  {formErrors.userName && (
+                    <p className="text-[11px] font-mono text-rose-400 mt-1">
+                      {formErrors.userName}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -341,14 +410,27 @@ export const EarlyResultsSection: React.FC = () => {
                   </label>
                   <select
                     value={uploadCategory}
-                    onChange={(e) => setUploadCategory(e.target.value as any)}
-                    className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-md font-mono text-xs text-white focus:outline-none focus:border-white"
+                    disabled={loading}
+                    onChange={(e) => {
+                      setUploadCategory(e.target.value as any);
+                      if (formErrors.category) {
+                        setFormErrors((prev) => ({ ...prev, category: undefined }));
+                      }
+                    }}
+                    className={`w-full h-10 px-3 bg-zinc-950 border ${
+                      formErrors.category ? 'border-rose-500' : 'border-zinc-700'
+                    } rounded-md font-mono text-xs text-white focus:outline-none focus:border-white disabled:opacity-50`}
                   >
                     <option value="before_after">Before &amp; After Photo</option>
                     <option value="pushups_form">Push-ups Form Video</option>
                     <option value="plank_progress">Plank Progress Check</option>
                     <option value="squats_test">Squats Assessment</option>
                   </select>
+                  {formErrors.category && (
+                    <p className="text-[11px] font-mono text-rose-400 mt-1">
+                      {formErrors.category}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -360,10 +442,22 @@ export const EarlyResultsSection: React.FC = () => {
                   type="text"
                   placeholder="e.g., 30-Day Strength Recalibration Milestone"
                   value={uploadTitle}
-                  onChange={(e) => setUploadTitle(e.target.value)}
-                  required
-                  className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-md font-mono text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-white"
+                  disabled={loading}
+                  onChange={(e) => {
+                    setUploadTitle(e.target.value);
+                    if (formErrors.milestoneTitle) {
+                      setFormErrors((prev) => ({ ...prev, milestoneTitle: undefined }));
+                    }
+                  }}
+                  className={`w-full h-10 px-3 bg-zinc-950 border ${
+                    formErrors.milestoneTitle ? 'border-rose-500' : 'border-zinc-700'
+                  } rounded-md font-mono text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-white disabled:opacity-50`}
                 />
+                {formErrors.milestoneTitle && (
+                  <p className="text-[11px] font-mono text-rose-400 mt-1">
+                    {formErrors.milestoneTitle}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -372,10 +466,11 @@ export const EarlyResultsSection: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g., Push-ups: 10 &rarr; 32 | Plank: 20s &rarr; 60s"
+                  placeholder="e.g., Push-ups: 10 → 32 | Plank: 20s → 60s"
                   value={strengthDeltaInput}
+                  disabled={loading}
                   onChange={(e) => setStrengthDeltaInput(e.target.value)}
-                  className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-md font-mono text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-white"
+                  className="w-full h-10 px-3 bg-zinc-950 border border-zinc-700 rounded-md font-mono text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-white disabled:opacity-50"
                 />
               </div>
 
@@ -387,18 +482,35 @@ export const EarlyResultsSection: React.FC = () => {
                   rows={2}
                   placeholder="Share details on how the strength test guided your training..."
                   value={uploadNotes}
+                  disabled={loading}
                   onChange={(e) => setUploadNotes(e.target.value)}
-                  className="w-full p-2.5 bg-zinc-950 border border-zinc-700 rounded-md font-mono text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-white"
+                  className="w-full p-2.5 bg-zinc-950 border border-zinc-700 rounded-md font-mono text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-white disabled:opacity-50"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 px-4 bg-white text-black font-bold text-xs uppercase tracking-wider rounded-md hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                disabled={loading}
+                className="w-full py-3 px-4 bg-white text-black font-bold text-xs uppercase tracking-wider rounded-md hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Plus className="w-4 h-4" />
-                <span>Submit Verified Milestone</span>
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Submitting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    <span>Submit Verified Milestone</span>
+                  </>
+                )}
               </button>
+
+              {errorMessage && (
+                <div className="p-3 bg-rose-950/40 text-rose-400 font-mono text-xs border border-rose-800 rounded-md">
+                  {errorMessage}
+                </div>
+              )}
 
               {uploadSuccess && (
                 <div className="p-3 bg-zinc-950 text-white font-mono text-xs border border-emerald-500/50 rounded-md flex items-center gap-2">
