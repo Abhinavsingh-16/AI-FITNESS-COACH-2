@@ -1,23 +1,52 @@
 import React, { useState } from 'react';
-import { Mail, CheckCircle2, Bell } from 'lucide-react';
-
+import { Mail, CheckCircle2, Bell, Loader2 } from 'lucide-react';
+import { supabase } from '../utils/supabaseClient';
 
 export const EmailSignupSection: React.FC = () => {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubscribe = (e: React.FormEvent) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !email.includes('@') || email.indexOf('@') === email.length - 1) {
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
       setError('Please enter a valid email address.');
       return;
     }
 
     setError('');
-    // TODO: Phase 3 - connect to Supabase (send email to newsletter subscribers table instead of local state only)
-    setSubscribed(true);
-    setEmail('');
+    setLoading(true);
+
+    try {
+      const { error: insertError } = await supabase
+        .from('email_signups')
+        .insert([{ email: trimmedEmail }]);
+
+      if (insertError) {
+        if (
+          insertError.code === '23505' ||
+          insertError.message?.toLowerCase().includes('duplicate') ||
+          insertError.message?.toLowerCase().includes('unique')
+        ) {
+          setError('This email is already signed up.');
+        } else {
+          setError('Something went wrong, please try again.');
+        }
+        return;
+      }
+
+      setSubscribed(true);
+      setEmail('');
+    } catch {
+      setError('Something went wrong, please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -52,10 +81,10 @@ export const EmailSignupSection: React.FC = () => {
                 <div className="p-5 border border-zinc-700 bg-zinc-950 rounded-xl space-y-2 font-mono text-xs">
                   <div className="flex items-center gap-2 text-white font-bold text-sm">
                     <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                    <span>SUBSCRIPTION CONFIRMED</span>
+                    <span>YOU'RE ON THE LIST!</span>
                   </div>
                   <p className="text-zinc-400">
-                    You have been subscribed to our weekly exercise science newsletter. Look out for the first issue this Sunday.
+                    You're on the list! You have been subscribed to our weekly exercise science newsletter. Look out for the first issue this Sunday.
                   </p>
                   <button
                     type="button"
@@ -77,11 +106,12 @@ export const EmailSignupSection: React.FC = () => {
                         type="email"
                         placeholder="yourname@domain.com"
                         value={email}
+                        disabled={loading}
                         onChange={(e) => {
                           setEmail(e.target.value);
                           if (error) setError('');
                         }}
-                        className="w-full h-12 px-4 bg-zinc-950 border border-zinc-700 rounded-md font-sans text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-white"
+                        className="w-full h-12 px-4 bg-zinc-950 border border-zinc-700 rounded-md font-sans text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-white disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -95,10 +125,20 @@ export const EmailSignupSection: React.FC = () => {
                   <button
                     id="subscribe-cta-btn"
                     type="submit"
-                    className="w-full h-12 bg-white text-black font-bold text-xs uppercase tracking-wider rounded-md hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                    disabled={loading}
+                    className="w-full h-12 bg-white text-black font-bold text-xs uppercase tracking-wider rounded-md hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Mail className="w-4 h-4" />
-                    <span>Subscribe for Fitness Tips</span>
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Subscribing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="w-4 h-4" />
+                        <span>Subscribe for Fitness Tips</span>
+                      </>
+                    )}
                   </button>
 
                   <p className="text-[11px] font-mono text-zinc-500 text-center">
